@@ -4,6 +4,7 @@
 // Pantallas del OLED 128x64
 
 #define FUENTE u8g2_font_6x10_tf
+#define MARCO(n) (c->sel != (n) ? 0 : c->editando ? 2 : 1)
 
 static u8g2_t *u;
 
@@ -27,9 +28,13 @@ static void titulo(const char *s, const char *der)
 /* Fila "etiqueta .... valor". marco: 0 nada, 1 seleccionada, 2 editandose */
 static void fila(int y, const char *etiqueta, const char *valor, int marco)
 {
-    if (marco == 2) {
+    char txt[24];
+
+    if (marco == 2) {   /* editandose: invertida y con flechas */
         u8g2_DrawRBox(u, 0, y - 1, 128, 12, 2);
         u8g2_SetDrawColor(u, 0);
+        snprintf(txt, sizeof(txt), "<%s>", valor);
+        valor = txt;
     } else if (marco == 1) {
         u8g2_DrawRFrame(u, 0, y - 1, 128, 12, 2);
     }
@@ -60,7 +65,25 @@ static void numero(int x, int y, const char *num, const char *unidad)
     u8g2_DrawUTF8(u, x, y + 7, unidad);
 }
 
-#define MARCO(n) (c->sel != (n) ? 0 : c->editando ? 2 : 1)
+/* Bateria, nivel 0..100 */
+static void bateria(int x, int y, int w, int h, int nivel)
+{
+    u8g2_DrawFrame(u, x, y, w, h);
+    u8g2_DrawBox(u, x + w, y + h / 4, 2, h - 2 * (h / 4));
+    u8g2_DrawBox(u, x + 2, y + 2, (w - 4) * limitar(nivel, 0, 100) / 100, h - 4);
+}
+
+/* Termometro de 20 a 60 C con marca en MAX_TEMP */
+static void termometro(int x, int y, float temp)
+{
+    int alto = limitar((int)((temp - 20.0f) * 26.0f / 40.0f), 0, 26);
+
+    u8g2_DrawRFrame(u, x, y, 9, 34, 4);
+    u8g2_DrawDisc(u, x + 4, y + 38, 7, U8G2_DRAW_ALL);
+    u8g2_DrawBox(u, x + 2, y + 30 - alto, 5, alto + 4);
+    u8g2_DrawHLine(u, x + 10, y + 30 - (int)((MAX_TEMP - 20.0f) * 26.0f / 40.0f), 3);
+}
+
 
 void pantalla_dibujar(u8g2_t *u8g2, const cargador_t *c, estado_t estado)
 {
@@ -96,6 +119,12 @@ void pantalla_dibujar(u8g2_t *u8g2, const cargador_t *c, estado_t estado)
         titulo("MENU", "v" CARGADOR_VERSION);
         boton(4, 17, 120, "Carga", c->sel == 0);
         boton(4, 39, 120, "Descarga", c->sel == 1);
+        /* bateria llena para carga, vacia para descarga (invertida si esta seleccionada) */
+        u8g2_SetDrawColor(u, c->sel != 0);
+        bateria(10, 21, 14, 7, 100);
+        u8g2_SetDrawColor(u, c->sel != 1);
+        bateria(10, 43, 14, 7, 25);
+        u8g2_SetDrawColor(u, 1);
         break;
 
     case EST_MODO_CARGA:
@@ -138,8 +167,7 @@ void pantalla_dibujar(u8g2_t *u8g2, const cargador_t *c, estado_t estado)
 
         /* nivel estimado por tension, entre corte y fin de carga */
         nivel = limitar((int)(100 * (b->v * 1000.0f - cfg->mv[0]) / (cfg->mv[1] - cfg->mv[0])), 0, 100);
-        u8g2_DrawFrame(u, 2, 37, 50, 9);
-        u8g2_DrawBox(u, 4, 39, 46 * nivel / 100, 5);
+        bateria(2, 37, 50, 9, nivel);
         snprintf(v, sizeof(v), "%d mAh", (int)b->mah);
         texto(126, 37, v, 2);
 
@@ -163,11 +191,12 @@ void pantalla_dibujar(u8g2_t *u8g2, const cargador_t *c, estado_t estado)
         } else {
             texto(2, 1, "PAUSA: TEMP ALTA", 0);
         }
+        termometro(8, 14, b->temp);
         snprintf(v, sizeof(v), "%.1f", b->temp);
-        numero(4, 16, v, "°C");
+        numero(34, 16, v, "°C");
         snprintf(v, sizeof(v), "Reanuda < %d°C", (int)TEMP_OK);
-        texto(4, 38, v, 0);
-        texto(4, 50, k ? "Carga en pausa" : "Descarga en pausa", 0);
+        texto(34, 38, v, 0);
+        texto(126, 52, k ? "Carga en pausa" : "Descarga en pausa", 2);
         break;
 
     default:
