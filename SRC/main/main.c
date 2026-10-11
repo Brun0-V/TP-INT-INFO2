@@ -21,13 +21,11 @@ void app_main(void)
         [EST_DESCARGA]      = f_proceso,
         [EST_IDLE]          = f_idle,
     };
-    estado_t estado = inicio(&cargador);
+    estado_t estado = EST_INIT;
 
-    while (1) {
-        leer_entradas(&cargador);
+    while (1){
         estado = (*fsm[estado])(&cargador);
+        leer_entradas(&cargador);
         mostrar(&cargador, estado);
     }
 }
-
-
