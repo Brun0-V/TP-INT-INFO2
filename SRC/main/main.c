@@ -4,7 +4,6 @@
  * Bruno Vega 
  * 2-11-R / 2026
  */
-
  
 #include "funciones.h"
 
@@ -26,6 +25,6 @@ void app_main(void)
     while (1){
         estado = (*fsm[estado])(&cargador);
         leer_entradas(&cargador);
-        mostrar(&cargador, estado);
+        actualizar_pantalla(&cargador, estado);
     }
 }

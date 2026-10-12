@@ -29,7 +29,7 @@ int limitar(int valor, int min, int max){
     //Si el valor es menor a min devuelve min, si es mayor a max devuelve max, sino devuelve el valor
 } 
 
-static void mover(cargador_t *c, int cant){
+static void select(cargador_t *c, int cant){
     if (c->evento == EV_ABAJO) c->sel = (c->sel + 1) % cant;
     if (c->evento == EV_ARRIBA) c->sel = (c->sel + cant - 1) % cant;
 }
@@ -44,7 +44,7 @@ void leer_entradas(cargador_t *c){
 }
 
 
-void mostrar(const cargador_t *c, estado_t estado){
+void actualizar_pantalla(const cargador_t *c, estado_t estado){
     static const char *nombres[EST_CANT] = {
         "Init", "Menu", "Modo de Carga", "Modo de Descarga",
          "Config", "Carga", "Descarga", "Idle"
@@ -73,14 +73,53 @@ void mostrar(const cargador_t *c, estado_t estado){
     pantalla_dibujar(hw_pantalla(), c, estado);
 }
 
-estado_t f_init(cargador_t *c){}
+estado_t f_init(cargador_t *c){ // Inicializa el hardware y muestra la pantalla de inicio
+    *c = (cargador_t){0}; 
+    hw_init();
+    c->carga = 1;
+    cargar_quimica(&c->cfg, 0);
+    c->desde_ms = hw_millis();
+    do{
+        c->ahora_ms = hw_millis();
+        pantalla_dibujar(hw_pantalla(), c, EST_INIT);
+    } while ( c->ahora_ms - c->desde_ms < INIT_MS );
 
-estado_t f_menu(cargador_t *c){}
+    return EST_MENU;
+}
 
-estado_t f_modo(cargador_t *c){}
+estado_t f_menu(cargador_t *c){ // Menu principal: Carga / Descarga
+    select(c, 2);
+    if (c->evento != EV_PULSADO)
+        return EST_MENU;
+    c->carga = (c->sel == 0);
+    return c->carga ? EST_MODO_CARGA : EST_MODO_DESCARGA;
+}
+
+estado_t f_modo(cargador_t *c){ // Menu de seleccion de modo: Start / Config / Cancel
+    select(c, 3);
+    if (c->evento != EV_PULSADO) 
+        return c->carga ? EST_MODO_CARGA : EST_MODO_DESCARGA;
+    switch (c->sel){
+    case 0: // Start
+        c->bat.mah = c->bat.seg = 0.0f;
+        c->fin = 0;
+        // TODO: salida enable
+        return c->carga ? EST_CARGA : EST_DESCARGA;
+    case 1: // Config
+        return EST_CONFIG;
+    default: // Cancel
+        return EST_MENU;
+    }
+}
 
 estado_t f_config(cargador_t *c){}
 
 estado_t f_proceso(cargador_t *c){}
 
-estado_t f_idle(cargador_t *c){}
+estado_t f_idle(cargador_t *c){
+    if(c->bat.temp >= TEMP_OK){
+        return EST_IDLE;
+    }
+    // TODO: salida enable
+    return c->carga ? EST_CARGA : EST_DESCARGA;
+}
